@@ -12,20 +12,21 @@
   (displayln (doc->string d)))
 
 (define (show-results d)
-  (for ((s (in-stream (stream-map format->string (doc->formats d)))))
+  (for ((s (in-stream (stream-map format->string (doc->formats d))))
+	(limit 16))
     (displayln (make-string (current-page-width) #\=))
     (displayln s)))
 
 (module+ main
-  (define (show-result* widths d)
+  (define (show-results* widths d)
     (newline)
-    (show-result d)
+    (show-results d)
     (for ((width widths))
       (newline)
       (parameterize ((current-page-width width))
-	(show-result d))))
+	(show-results d))))
 
-  (show-result*
+  (show-results*
    (list 40 20 10 5)
    (seq-docs "["", ""]"
 	     "[ "","" ]"
@@ -41,17 +42,17 @@
 		   "fifth"
 		   "sixth")))
 
-  (show-result*
+  (show-results*
    (list 40 20 10 5)
    (sexp->doc
     '(define (take-at-most xs n)
        (cond
 	[(zero? n) '()]
 	[(null? xs) '()]
-	[else (cons (car xs) #;(take-at-most (cdr xs) (- n 1)))]))
+	[else (cons (car xs) (take-at-most (cdr xs) (- n 1)))]))
     ))
 
-  #;(show-result*
+  (show-results*
    (list 40 20 10 5)
    (sexp->doc
     '(define (sexp->doc form)

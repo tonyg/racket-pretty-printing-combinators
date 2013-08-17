@@ -1,6 +1,10 @@
 #lang racket/base
-;; Pretty-printing combinators, following Azero and Swierstra.
-;; See http://www.cs.uu.nl/wiki/HUT/PrettyPrintingCombinators
+;; Pretty-printing combinators, loosely following Azero and Swierstra,
+;; but using ordered choice instead of unordered choice. The change
+;; lets us find an OK-ish solution in reasonable time, but of course
+;; means we're not guaranteed to find an optimal solution.
+;;
+;; See http://www.cs.uu.nl/wiki/HUT/PrettyPrintingCombinators.
 
 (require racket/match)
 (require racket/stream)
@@ -218,9 +222,7 @@
 		  (delay (above-text-structure (force tts) (force bts))))]))
 
 (define (above-formats ts bs)
-  (merge-sorted-streams*
-   (stream-map (lambda (t) (stream-map (curry above-format t) bs)) ts)
-   format-shape<?))
+  (rational-stream-map above-format ts bs))
 
 (define (beside-format l r)
   (cond
@@ -238,16 +240,15 @@
     (<= (max (element-total-width l)
 	     (+ (element-last-line-width l) (element-total-width r)))
 	(current-page-width)))
-  (merge-sorted-streams* (stream-map
-			  (lambda (l)
-			    (stream-map (curry beside-format l)
-					(stream-filter-keeping-least-bad (curry fits-beside? l)
-									 rs)))
-			  ls)
-			 format-shape<?))
+  (append-streams (stream-map
+		   (lambda (l)
+		     (stream-map (curry beside-format l)
+				 (stream-filter-keeping-least-bad (curry fits-beside? l)
+								  rs)))
+		   ls)))
 
 (define (choice-formats ss)
-  (merge-sorted-streams* ss format-shape<?))
+  (interleave-streams ss))
 
 ;;---------------------------------------------------------------------------
 ;; Formatting and rendering a document.
