@@ -45,7 +45,7 @@
        (cond
 	[(zero? n) '()]
 	[(null? xs) '()]
-	[else (cons (car xs) (take-at-most (cdr xs) (- n 1)))]))
+	[else (cons (car xs) #;(take-at-most (cdr xs) (- n 1)))]))
     ))
 
   #;(show-results*
