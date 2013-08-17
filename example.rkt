@@ -2,20 +2,22 @@
 
 (require racket/stream)
 (require racket/pretty)
-(require "pp.rkt")
-(require "pp-racket.rkt")
+(require "main.rkt")
+
+(require (only-in "pp.rkt" doc->formats format->string))
 
 (provide show-results)
 
 (define (show-result d)
   (displayln (make-string (current-page-width) #\=))
-  (displayln (doc->string d)))
+  (displayln (time (doc->string d))))
 
 (define (show-results d)
-  (for ((s (in-stream (stream-map format->string (doc->formats d))))
-	(limit 16))
-    (displayln (make-string (current-page-width) #\=))
-    (displayln s)))
+  (time (begin
+	  (for ((s (in-stream (stream-map format->string (time (doc->formats d)))))
+	        (limit 16))
+	    (displayln (make-string (current-page-width) #\=))
+	    (displayln s)))))
 
 (module+ main
   (define (show-results* widths d)
