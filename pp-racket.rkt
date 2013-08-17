@@ -36,9 +36,12 @@
   (define arg-docs (map sexp->doc args))
 
   (define (layout-variations distance arg-docs)
-    (choice (apply beside*/space (cons head-doc arg-docs))
-	    (beside/space head-doc (apply above* arg-docs))
-	    (above head-doc (indent distance (apply above* arg-docs)))))
+    (if (= (length arg-docs) 1)
+	(choice (beside/space head-doc (car arg-docs))
+		(above head-doc (indent distance (apply above* arg-docs))))
+	(choice (apply beside*/space (cons head-doc arg-docs))
+		(beside/space head-doc (apply above* arg-docs))
+		(above head-doc (indent distance (apply above* arg-docs))))))
 
   (beside* LP
 	   (cond
@@ -60,17 +63,12 @@
 
 (define (cond-like-clause-sexp->doc form)
   (match-define (cons test body-forms) form)
-  (define vertical (beside* "["
-			    (above (sexp->doc test)
-				   (apply above* (map sexp->doc body-forms)))
-			    "]"))
-  (match body-forms
-    [(list body-form)
-     (choice (beside* "["
-		      (sexp->doc test)
-		      " "
-		      (sexp->doc body-form)
-		      "]")
+  (define test-doc (sexp->doc test))
+  (define body-docs (map sexp->doc body-forms))
+  (define vertical (beside* "[" (above test-doc (apply above* body-docs)) "]"))
+  (match body-docs
+    [(list body-doc)
+     (choice (beside* "[" test-doc " " body-doc "]")
 	     vertical)]
     [_ vertical]))
 
@@ -78,11 +76,12 @@
   (match form
     [`(,head ,value [,test ,body ...] ...)
      (define head-doc (sexp->doc head))
+     (define value-doc (sexp->doc value))
      (beside* "("
 	      (above
-	       (choice (beside/space head-doc (sexp->doc value))
+	       (choice (beside/space head-doc value-doc)
 		       (above head-doc
-			      (indent (current-big-indent) (sexp->doc value))))
+			      (indent (current-big-indent) value-doc)))
 	       (indent (current-normal-indent)
 		       (apply above*
 			      (map (lambda (test body-forms)
@@ -117,29 +116,30 @@
 (define (hash-like-sexp->doc form)
   (match form
     [(cons head items)
+     (define item-docs (map sexp->doc items))
      (beside* "("
 	      (sexp->doc head)
 	      (choice
-	       (let walk ((items items))
-		 (match items
+	       (let walk ((item-docs item-docs))
+		 (match item-docs
 		   ['()
 		    (empty-doc)]
 		   [(list last)
-		    (sexp->doc last)]
+		    last]
 		   [(list* first second rest)
-		    (above (beside/space (sexp->doc first) (sexp->doc second))
+		    (above (beside/space first second)
 			   (walk rest))]))
 	       (let walk ((items items))
 		 (match items
 		   ['()
 		    (empty-doc)]
 		   [(list last)
-		    (sexp->doc last)]
+		    last]
 		   [(list penultimate ultimate)
-		    (above (sexp->doc penultimate) (sexp->doc ultimate))]
+		    (above penultimate ultimate)]
 		   [(list* first second rest)
-		    (above* (sexp->doc first)
-			    (sexp->doc second)
+		    (above* first
+			    second
 			    ";;"
 			    (walk rest))])))
 	      ")")]
