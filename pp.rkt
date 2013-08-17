@@ -206,9 +206,12 @@
   	  (list (stream-first xs))) ;; TODO: is this the least ugly/bad element to pick?
       filtered-xs))
 
+(define ((fits? indent-distance) e)
+  (<= (element-total-width e) (- (current-page-width) indent-distance)))
+
 (define (indent-formats distance es)
-  (define (fits? e) (<= (element-total-width e) (- (current-page-width) distance)))
-  (stream-map (curry indent-format distance) (stream-filter-keeping-least-bad fits? es)))
+  (stream-map (curry indent-format distance)
+	      (stream-filter-keeping-least-bad (curry fits? distance) es)))
 
 (define (above-format t b)
   (cond
@@ -253,13 +256,17 @@
 ;;---------------------------------------------------------------------------
 ;; Formatting and rendering a document.
 
-(define doc->formats
-  (doc-fold empty-formats
-	    string-formats
-	    indent-formats
-	    above-formats
-	    beside-formats
-	    choice-formats))
+(define (doc->formats d)
+  (define raw ((doc-fold empty-formats
+			 string-formats
+			 indent-formats
+			 above-formats
+			 beside-formats
+			 choice-formats) d))
+  (define filtered (stream-filter (fits? 0) raw))
+  (if (stream-empty? filtered)
+      raw
+      filtered))
 
 (define (doc->format d)
   (define fs (doc->formats d))
