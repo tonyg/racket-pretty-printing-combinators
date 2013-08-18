@@ -166,17 +166,6 @@
 (define (empty-format)
   (element 0 0 0 (delay (empty-text-structure))))
 
-(define (empty-formats)
-  (list (empty-format)))
-
-(define (string-formats s)
-  (define l (string-length s))
-  ;; Used to check width here, returning '() if we overflowed the
-  ;; page; now we rely on the overflow-reordering trick instead, so
-  ;; that we get to keep some candidate layout even in extreme
-  ;; circumstances.
-  (list (element 1 l l (delay (string-text-structure s)))))
-
 (define (indent-format distance e)
   (match e
     [(element 0 0 0 _) e]
@@ -197,10 +186,6 @@
 (define ((fits? indent-distance) e)
   (<= (element-total-width e) (- (current-page-width) indent-distance)))
 
-(define (indent-formats distance es)
-  (stream-map (curry indent-format distance)
-	      (stream-filter-keeping-least-bad (curry fits? distance) es)))
-
 (define (above-format t b)
   (cond
    [(empty-format? t) b]
@@ -211,9 +196,6 @@
 	          blw
 		  (max ttw btw)
 		  (delay (above-text-structure (force tts) (force bts))))]))
-
-(define (above-formats ts bs)
-  (rational-stream-map above-format ts bs))
 
 (define (beside-format l r)
   (cond
@@ -226,33 +208,44 @@
 		  (max ltw (+ llw rtw))
 		  (delay (beside-text-structure llw (force lts) (force rts))))]))
 
-(define (beside-formats ls rs)
-  (define (fits-beside? l r)
-    (<= (max (element-total-width l)
-	     (+ (element-last-line-width l) (element-total-width r)))
-	(current-page-width)))
-  (append-streams (stream-map
-		   (lambda (l)
-		     (stream-map (curry beside-format l)
-				 (stream-filter-keeping-least-bad (curry fits-beside? l)
-								  rs)))
-		   ls)))
-
-(define (choice-formats ss)
-  (interleave-streams ss))
-
 ;;---------------------------------------------------------------------------
 ;; Formatting and rendering a document.
 
 (define (doc->formats d)
   (define (walk d)
     (match d
-      [(empty-doc) (empty-formats)]
-      [(? string? s) (string-formats s)]
-      [(indent distance doc) (indent-formats distance (walk doc))]
-      [(above t b) (above-formats (walk t) (walk b))]
-      [(beside l r) (beside-formats (walk l) (walk r))]
-      [(choice ds) (choice-formats (stream-map walk ds))]))
+      [(empty-doc)
+       (list (empty-format))]
+      [(? string? s)
+       (define l (string-length s))
+       ;; Used to check width here, returning '() if we overflowed the
+       ;; page; now we rely on the overflow-reordering trick instead, so
+       ;; that we get to keep some candidate layout even in extreme
+       ;; circumstances.
+       (list (element 1 l l (delay (string-text-structure s))))]
+      [(indent distance doc)
+       (stream-map (curry indent-format distance)
+		   (stream-filter-keeping-least-bad (curry fits? distance) (walk doc)))]
+      [(above t b)
+       (define ts (walk t))
+       (define bs (walk b))
+       (rational-stream-map above-format ts bs)]
+      [(beside l r)
+       (define ls (walk l))
+       (define rs (walk r))
+       (define (fits-beside? l r)
+	 (<= (max (element-total-width l)
+		  (+ (element-last-line-width l) (element-total-width r)))
+	     (current-page-width)))
+       (append-streams (stream-map
+			(lambda (l)
+			  (stream-map (curry beside-format l)
+				      (stream-filter-keeping-least-bad (curry fits-beside? l)
+								       rs)))
+			ls))]
+      [(choice ds)
+       (interleave-streams (stream-map walk ds))]))
+
   (define raw (walk d))
   (define filtered (stream-filter (fits? 0) raw))
   (if (stream-empty? filtered)
