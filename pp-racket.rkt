@@ -3,6 +3,7 @@
 
 (require racket/match)
 (require (only-in racket/port with-output-to-string))
+(require (only-in racket/function curry))
 (require "pp.rkt")
 (require "list-utils.rkt")
 
@@ -15,11 +16,13 @@
 
 	 ;; Lower-level formatting utilities
 	 generic-sexp->doc
+	 bindings-like-sexp->doc
 	 let-sexp->doc
 	 cond-like-sexp->doc
 	 case-like-sexp->doc
 	 generic-quoted-sexp->doc
 	 hash-like-sexp->doc
+	 if-like-sexp->doc
 	 )
 
 ;;---------------------------------------------------------------------------
@@ -27,7 +30,7 @@
 (define (height-one? e)
   (= (element-height e) 1))
 
-(define (generic-sexp->doc special-argument-count form #:parens [parens 'round])
+(define (generic-sexp->doc special-arguments form #:parens [parens 'round])
   (define-values (LP RP) (match parens
 			   ['round (values "(" ")")]
 			   ['square (values "[" "]")]
@@ -36,15 +39,28 @@
 
   (match-define (cons head args) form)
   (define head-doc (sexp->doc head))
+
+  (define special-argument-formatters
+    (cond
+     [(not special-arguments) '()]
+     [(number? special-arguments) '()]
+     [(list? special-arguments) special-arguments]
+     [else (error 'generic-sexp->doc "Invalid special-arguments specification: ~v"
+		  special-arguments)]))
+
   (define arg-docs
     (if (list? args)
-	(map sexp->doc args)
+	(let walk ((args args)
+		   (formatters special-argument-formatters))
+	  (cond
+	   [(null? args) '()]
+	   [(null? formatters) (cons (sexp->doc (car args)) (walk (cdr args) formatters))]
+	   [else (cons ((car formatters) (car args)) (walk (cdr args) (cdr formatters)))]))
 	(list "." (sexp->doc args))))
 
   (define (layout-variations distance arg-docs)
     (if (= (length arg-docs) 1)
-	(choice (reject-unless height-one?
-			       (beside/space head-doc (car arg-docs)))
+	(choice (beside/space (reject-unless height-one? head-doc) (car arg-docs))
 		(above head-doc (indent distance (apply above* arg-docs))))
 	(choice (reject-unless height-one?
 			       (apply beside*/space (cons head-doc arg-docs)))
@@ -53,22 +69,36 @@
 
   (beside* LP
 	   (cond
-	    [(not special-argument-count)
+	    [(not special-arguments)
 	     (layout-variations 0 arg-docs)]
-	    [(zero? special-argument-count)
+	    [(or (equal? special-arguments 0) (null? special-arguments))
 	     (layout-variations (current-normal-indent) arg-docs)]
-	    [(positive? special-argument-count)
-	     (define special-arg-docs (take-at-most arg-docs special-argument-count))
-	     (define ordinary-arg-docs (drop-at-most arg-docs special-argument-count))
+	    [else
+	     (define special-count (if (number? special-arguments)
+				       special-arguments
+				       (length special-arguments)))
+	     (define special-arg-docs (take-at-most arg-docs special-count))
+	     (define ordinary-arg-docs (drop-at-most arg-docs special-count))
 	     (choice (reject-unless height-one? (apply beside*/space (cons head-doc arg-docs)))
 		     (above (layout-variations (current-big-indent) special-arg-docs)
 			    (indent (current-normal-indent) (apply above* ordinary-arg-docs))))])
 	   RP))
 
+(define (bindings-like-sexp->doc form)
+  (beside* "("
+	   (apply above* (map (curry generic-sexp->doc #f) form))
+	   ")"))
+
 (define (let-sexp->doc form)
   (match form
-    [`(let ,(? symbol?) ,_ ...) (generic-sexp->doc 2 form)]
-    [_ (generic-sexp->doc 1 form)]))
+    [`(let ,(? symbol? name) ((,arg ...) ...) ,body ...)
+     (beside* "("
+	      (above* (beside* "let " (symbol->string name) " " (bindings-like-sexp->doc arg))
+		      (indent (current-normal-indent) (apply above* (map sexp->doc body)))))]
+    [`(let ((,arg ...) ...) ,body ...)
+     (generic-sexp->doc (list bindings-like-sexp->doc) form)]
+    [_
+     (generic-sexp->doc 1 form)]))
 
 (define (cond-like-clause-sexp->doc form)
   (match-define (cons test body-forms) form)
@@ -155,6 +185,22 @@
 	      ")")]
     [_ (generic-sexp->doc 0 form)]))
 
+(define (if-like-sexp->doc form)
+  (match form
+    [`(if ,test ,true ,false)
+     (define test-doc (sexp->doc test))
+     (define true-doc (sexp->doc true))
+     (define false-doc (sexp->doc false))
+     (beside* "(if "
+	      (choice (reject-unless (lambda (e)
+				       (and (height-one? e)
+					    (<= (element-total-width e)
+						(/ (current-page-width) 2))))
+				     (beside*/space test-doc true-doc false-doc))
+		      (above* test-doc true-doc false-doc))
+	      ")")]
+    [_ (generic-sexp->doc #f form)]))
+
 ;;---------------------------------------------------------------------------
 
 (define current-racket-format-map
@@ -175,7 +221,13 @@
 	 'hash hash-like-sexp->doc
 	 'lambda 1
 	 'define 1
+	 'define-syntax 1
+	 'define-syntax-rule 1
+	 'define-values 1
+	 'for 1
+	 'for/list 1
 	 'module+ 1
+	 'if if-like-sexp->doc
 	 )))
 
 ;; Indents exclude the width of the opening paren.
@@ -184,13 +236,23 @@
 
 ;;---------------------------------------------------------------------------
 
+;; (define is-define-symbol?
+;;   (let* ((p "define-")
+;; 	 (plen (string-length p)))
+;;     (lambda (sym)
+;;       (define str (symbol->string sym))
+;;       (and (>= (string-length str) plen) (string-ci=? (substring str 0 plen) p)))))
+
 (define (sexp->doc form)
   (match form
     [(cons (? symbol? head) rest)
      (define formatter (hash-ref (current-racket-format-map) head #f))
-     (if (procedure? formatter)
-	 (formatter form)
-	 (generic-sexp->doc formatter form))]
+     (cond
+      [(procedure? formatter) (formatter form)]
+      ;; [(and (not formatter) (is-define-symbol? head)) (generic-sexp->doc 1 form)]
+      [else (generic-sexp->doc formatter form)])]
+    [(? pair?)
+     (generic-sexp->doc #f form)]
     [(? vector?)
      (beside "#" (sexp->doc (vector->list form)))]
     [_

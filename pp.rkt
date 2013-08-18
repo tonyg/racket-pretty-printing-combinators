@@ -230,17 +230,17 @@
 				      (walk (- remaining (element-last-line-width l)) r)))
 			(walk remaining l)))]
       [(choice ds)
-       (merge-sorted-streams* (stream-map (curry walk remaining) ds) format-shape<?)]
+       ;; (append-streams (stream-map (curry walk remaining) ds))
+       (interleave-streams (stream-map (curry walk remaining) ds))
+       ;; (merge-sorted-streams* (stream-map (curry walk remaining) ds) format-shape<?)
+       ]
       [(reject-unless condition d)
        (stream-filter condition (walk remaining d))]))
+
   (local-require racket/trace)
   ;;(trace walk)
 
-  (define raw (walk (current-page-width) d))
-  (define filtered raw) ;; (stream-filter (fits? 0) raw))
-  (if (stream-empty? filtered)
-      raw
-      filtered))
+  (walk (current-page-width) d))
 
 (define (doc->format d)
   (define fs (doc->formats d))

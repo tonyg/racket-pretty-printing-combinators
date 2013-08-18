@@ -21,6 +21,7 @@ The main interfaces are:
      - `(beside Document Document)`, `(beside/space Document Document)`
      - `(beside* Document ...)`, `(beside*/space Document ...)`
      - `(choice Document-expr ...)`
+     - `(reject-unless (Format -> Boolean) Document)`
 
  - `doc->string` lays out and renders a Document to a string
 

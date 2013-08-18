@@ -14,7 +14,7 @@
 	       (newline)
 	       (loop)))))
 
-(current-page-width 100)
+(current-page-width 80)
 (with-input-from-file "stream-utils.rkt" pp-racket-source)
 (with-input-from-file "pp.rkt" pp-racket-source)
 (with-input-from-file "pp-racket.rkt" pp-racket-source)
