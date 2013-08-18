@@ -6,6 +6,10 @@ using ordered choice instead of unordered choice. The change lets us
 find an OK-ish solution in reasonable time, but of course means we're
 not guaranteed to find an optimal solution.
 
+**WARNING**: This code is not ready for use, as it is (very)
+superlinear in some cases still, despite no longer relying on
+examination of the entire tree.
+
 The main interfaces are:
 
  - document construction via combinators
