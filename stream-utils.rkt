@@ -6,7 +6,8 @@
 	 interleave-streams
 	 merge-sorted-streams*
 	 merge-sorted-streams
-	 rational-stream-map)
+	 rational-stream-map
+	 stream-filter-keeping-least-bad)
 
 (define (append-streams ss)
   (if (stream-empty? ss)
@@ -68,6 +69,14 @@
 		   (walk flipped
 			 (stream-cons x seen-xs) (stream-rest remaining-xs)
 			 (stream-cons y seen-ys) (stream-rest remaining-ys)))])))
+
+(define (stream-filter-keeping-least-bad ? xs)
+  (define filtered-xs (stream-filter ? xs))
+  (if (stream-empty? filtered-xs)
+      (if (stream-empty? xs)
+  	  '()
+  	  (list (stream-first xs))) ;; TODO: is this the least ugly/bad element to pick?
+      filtered-xs))
 
 (module+ main
   (require rackunit)

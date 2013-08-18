@@ -175,17 +175,6 @@
 	      (+ distance dtw)
 	      (delay (indent-text-structure distance (force dts))))]))
 
-(define (stream-filter-keeping-least-bad ? xs)
-  (define filtered-xs (stream-filter ? xs))
-  (if (stream-empty? filtered-xs)
-      (if (stream-empty? xs)
-  	  '()
-  	  (list (stream-first xs))) ;; TODO: is this the least ugly/bad element to pick?
-      filtered-xs))
-
-(define ((fits? indent-distance) e)
-  (<= (element-total-width e) (- (current-page-width) indent-distance)))
-
 (define (above-format t b)
   (cond
    [(empty-format? t) b]
@@ -210,6 +199,9 @@
 
 ;;---------------------------------------------------------------------------
 ;; Formatting and rendering a document.
+
+(define ((fits? indent-distance) e)
+  (<= (element-total-width e) (- (current-page-width) indent-distance)))
 
 (define (doc->formats d)
   (define (walk d)
