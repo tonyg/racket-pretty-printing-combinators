@@ -24,6 +24,9 @@
 
 ;;---------------------------------------------------------------------------
 
+(define (height-one? e)
+  (= (element-height e) 1))
+
 (define (generic-sexp->doc special-argument-count form #:parens [parens 'round])
   (define-values (LP RP) (match parens
 			   ['round (values "(" ")")]
@@ -33,13 +36,18 @@
 
   (match-define (cons head args) form)
   (define head-doc (sexp->doc head))
-  (define arg-docs (map sexp->doc args))
+  (define arg-docs
+    (if (list? args)
+	(map sexp->doc args)
+	(list "." (sexp->doc args))))
 
   (define (layout-variations distance arg-docs)
     (if (= (length arg-docs) 1)
-	(choice (beside/space head-doc (car arg-docs))
+	(choice (reject-unless height-one?
+			       (beside/space head-doc (car arg-docs)))
 		(above head-doc (indent distance (apply above* arg-docs))))
-	(choice (apply beside*/space (cons head-doc arg-docs))
+	(choice (reject-unless height-one?
+			       (apply beside*/space (cons head-doc arg-docs)))
 		(beside/space head-doc (apply above* arg-docs))
 		(above head-doc (indent distance (apply above* arg-docs))))))
 
@@ -52,8 +60,9 @@
 	    [(positive? special-argument-count)
 	     (define special-arg-docs (take-at-most arg-docs special-argument-count))
 	     (define ordinary-arg-docs (drop-at-most arg-docs special-argument-count))
-	     (above (layout-variations (current-big-indent) special-arg-docs)
-		    (indent (current-normal-indent) (apply above* ordinary-arg-docs)))])
+	     (choice (reject-unless height-one? (apply beside*/space (cons head-doc arg-docs)))
+		     (above (layout-variations (current-big-indent) special-arg-docs)
+			    (indent (current-normal-indent) (apply above* ordinary-arg-docs))))])
 	   RP))
 
 (define (let-sexp->doc form)
@@ -68,7 +77,7 @@
   (define vertical (beside* "[" (above test-doc (apply above* body-docs)) "]"))
   (match body-docs
     [(list body-doc)
-     (choice (beside* "[" test-doc " " body-doc "]")
+     (choice (reject-unless height-one? (beside* "[" test-doc " " body-doc "]"))
 	     vertical)]
     [_ vertical]))
 

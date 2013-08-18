@@ -2,12 +2,19 @@
 
 (require racket/stream)
 
-(provide append-streams
+(provide stream-take-at-most
+	 append-streams
 	 interleave-streams
 	 merge-sorted-streams*
 	 merge-sorted-streams
 	 rational-stream-map
 	 stream-filter-keeping-least-bad)
+
+(define (stream-take-at-most xs n)
+  (cond
+   [(zero? n) '()]
+   [(stream-empty? xs) '()]
+   [else (stream-cons (stream-first xs) (stream-take-at-most (stream-rest xs) (- n 1)))]))
 
 (define (append-streams ss)
   (if (stream-empty? ss)

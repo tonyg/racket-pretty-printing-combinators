@@ -20,6 +20,7 @@
 	 (struct-out beside)
 	 (except-out (struct-out choice) choice)
 	 (rename-out [build-choice choice])
+	 (struct-out reject-unless)
 
 	 ;; Page control
 	 current-page-width
@@ -57,6 +58,7 @@
 (struct above (top bottom) #:prefab)
 (struct beside (left right) #:prefab)
 (struct choice (choices) #:prefab)
+(struct reject-unless (condition doc) #:prefab)
 
 ;; A Format is an (element Natural Natural Natural TextStructure)
 ;; Contains a text structure and its measurements.
@@ -204,42 +206,42 @@
   (<= (element-total-width e) (- (current-page-width) indent-distance)))
 
 (define (doc->formats d)
-  (define (walk d)
+  (define (walk remaining d)
     (match d
       [(empty-doc)
        (list (empty-format))]
       [(? string? s)
        (define l (string-length s))
-       ;; Used to check width here, returning '() if we overflowed the
-       ;; page; now we rely on the overflow-reordering trick instead, so
-       ;; that we get to keep some candidate layout even in extreme
-       ;; circumstances.
-       (list (element 1 l l (delay (string-text-structure s))))]
+       (if (<= l remaining)
+	   (list (element 1 l l (delay (string-text-structure s))))
+	   '())]
       [(indent distance doc)
        (stream-map (curry indent-format distance)
-		   (stream-filter-keeping-least-bad (curry fits? distance) (walk doc)))]
+		   (walk (- remaining distance) doc))]
       [(above t b)
-       (define ts (walk t))
-       (define bs (walk b))
-       (rational-stream-map above-format ts bs)]
+       (define ts (walk remaining t))
+       (define bs (walk remaining b))
+       (define rs (append-streams (stream-map
+				   (lambda (t) (stream-map (curry above-format t) bs))
+				   ts)))
+       (stream-take-at-most rs 1)
+       #;(rational-stream-map above-format (walk remaining t) (walk remaining b))
+       ]
       [(beside l r)
-       (define ls (walk l))
-       (define rs (walk r))
-       (define (fits-beside? l r)
-	 (<= (max (element-total-width l)
-		  (+ (element-last-line-width l) (element-total-width r)))
-	     (current-page-width)))
        (append-streams (stream-map
 			(lambda (l)
 			  (stream-map (curry beside-format l)
-				      (stream-filter-keeping-least-bad (curry fits-beside? l)
-								       rs)))
-			ls))]
+				      (walk (- remaining (element-last-line-width l)) r)))
+			(walk remaining l)))]
       [(choice ds)
-       (interleave-streams (stream-map walk ds))]))
+       (merge-sorted-streams* (stream-map (curry walk remaining) ds) format-shape<?)]
+      [(reject-unless condition d)
+       (stream-filter condition (walk remaining d))]))
+  (local-require racket/trace)
+  ;;(trace walk)
 
-  (define raw (walk d))
-  (define filtered (stream-filter (fits? 0) raw))
+  (define raw (walk (current-page-width) d))
+  (define filtered raw) ;; (stream-filter (fits? 0) raw))
   (if (stream-empty? filtered)
       raw
       filtered))
