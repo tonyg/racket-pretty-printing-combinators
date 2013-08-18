@@ -103,18 +103,6 @@
 
 ;;---------------------------------------------------------------------------
 
-;; Fold over PPDoc.
-(define (doc-fold empty-fn text-fn indent-fn above-fn beside-fn choice-fn)
-  (define (walk d)
-    (match d
-      [(empty-doc) (empty-fn)]
-      [(? string? s) (text-fn s)]
-      [(indent distance doc) (indent-fn distance (walk doc))]
-      [(above t b) (above-fn (walk t) (walk b))]
-      [(beside l r) (beside-fn (walk l) (walk r))]
-      [(choice ds) (choice-fn (stream-map walk ds))]))
-  walk)
-
 ;; Format shape equality.
 (define (format-shape=? a b)
   (match-define (element ah alw atw _) a)
@@ -257,12 +245,15 @@
 ;; Formatting and rendering a document.
 
 (define (doc->formats d)
-  (define raw ((doc-fold empty-formats
-			 string-formats
-			 indent-formats
-			 above-formats
-			 beside-formats
-			 choice-formats) d))
+  (define (walk d)
+    (match d
+      [(empty-doc) (empty-formats)]
+      [(? string? s) (string-formats s)]
+      [(indent distance doc) (indent-formats distance (walk doc))]
+      [(above t b) (above-formats (walk t) (walk b))]
+      [(beside l r) (beside-formats (walk l) (walk r))]
+      [(choice ds) (choice-formats (stream-map walk ds))]))
+  (define raw (walk d))
   (define filtered (stream-filter (fits? 0) raw))
   (if (stream-empty? filtered)
       raw
