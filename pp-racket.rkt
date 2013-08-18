@@ -175,6 +175,7 @@
 	 'hash hash-like-sexp->doc
 	 'lambda 1
 	 'define 1
+	 'module+ 1
 	 )))
 
 ;; Indents exclude the width of the opening paren.

@@ -219,14 +219,10 @@
        (stream-map (curry indent-format distance)
 		   (walk (- remaining distance) doc))]
       [(above t b)
-       (define ts (walk remaining t))
-       (define bs (walk remaining b))
-       (define rs (append-streams (stream-map
-				   (lambda (t) (stream-map (curry above-format t) bs))
-				   ts)))
-       (stream-take-at-most rs 1)
-       #;(rational-stream-map above-format (walk remaining t) (walk remaining b))
-       ]
+       (stream-take-at-most (rational-stream-map above-format
+						 (walk remaining t)
+						 (walk remaining b))
+			    1)]
       [(beside l r)
        (append-streams (stream-map
 			(lambda (l)
