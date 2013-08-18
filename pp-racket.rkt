@@ -119,6 +119,7 @@
      (define item-docs (map sexp->doc items))
      (beside* "("
 	      (sexp->doc head)
+	      " "
 	      (choice
 	       (let walk ((item-docs item-docs))
 		 (match item-docs
@@ -129,8 +130,8 @@
 		   [(list* first second rest)
 		    (above (beside/space first second)
 			   (walk rest))]))
-	       (let walk ((items items))
-		 (match items
+	       (let walk ((item-docs item-docs))
+		 (match item-docs
 		   ['()
 		    (empty-doc)]
 		   [(list last)
